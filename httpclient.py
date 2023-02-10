@@ -22,6 +22,8 @@
 """
 Sources:
 - https://reqbin.com/req/nfilsyk5/get-request-example
+- Class's forum discussion
+- Class's Discord server discussion
 
 """
 
