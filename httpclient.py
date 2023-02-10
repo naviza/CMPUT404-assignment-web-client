@@ -18,11 +18,20 @@
 # Write your own HTTP GET and POST
 # The point is to understand what you have to send and get experience with it
 
+
+"""
+Sources:
+- https://reqbin.com/req/nfilsyk5/get-request-example
+
+"""
+
 import sys
 import socket
 import re
 # you may use urllib to encode data appropriately
 import urllib.parse
+
+DEFAULT_SOCKET = 8001
 
 def help():
     print("httpclient.py [GET/POST] [URL]\n")
@@ -41,13 +50,16 @@ class HTTPClient(object):
         return None
 
     def get_code(self, data):
-        return None
+        first_line = re.split('\\r\\n', data)[0]
+        # Assuming that the response is valid, code should be the second value
+        return re.split(' ', first_line)[1]
 
     def get_headers(self,data):
         return None
 
     def get_body(self, data):
-        return None
+        # Assuming that the response is valid, body comes after the \r\n\r\n
+        return re.split('\\r\\n\\r\\n', data)[1]
     
     def sendall(self, data):
         self.socket.sendall(data.encode('utf-8'))
@@ -68,13 +80,87 @@ class HTTPClient(object):
         return buffer.decode('utf-8')
 
     def GET(self, url, args=None):
-        code = 500
-        body = ""
+        """
+            GET /echo HTTP/1.1
+            Host: reqbin.com
+            Connection: close
+
+
+        """
+        # Documentation: https://docs.python.org/3/library/urllib.parse.html
+        parsed_url = urllib.parse.urlparse(url)
+
+        get_line = "GET " + (parsed_url.path if parsed_url.path else "/") + " HTTP/1.1\r\n"
+        host_line = "Host: " + parsed_url.hostname + "\r\n"
+        connection_line = "Connection: close\r\n\r\n"
+        # accept_line = "Accept: text/html;charset=utf-8, */*\r\n\r\n"
+
+        data_to_send = get_line + host_line + connection_line
+        # print(data_to_send)
+
+        if parsed_url.port:
+            self.connect(parsed_url.hostname, parsed_url.port)
+        elif parsed_url.scheme == "https":
+            self.connect(parsed_url.hostname, 443)
+        else: # http
+            self.connect(parsed_url.hostname, 80)
+
+        # self.socket.sendall((get_line + host_line + accept_line).encode('utf-8'))
+        self.sendall(data_to_send)
+
+        data = self.recvall(self.socket)
+        # print(data)
+        code = int(self.get_code(data))
+        body = self.get_body(data)
+        self.close()
+
         return HTTPResponse(code, body)
 
     def POST(self, url, args=None):
-        code = 500
-        body = ""
+        """
+            https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/POST
+
+            POST /test HTTP/1.1
+            Host: foo.example
+            Content-Type: application/x-www-form-urlencoded
+            Content-Length: 27
+
+            field1=value1&field2=value2
+        """
+
+        parsed_url = urllib.parse.urlparse(url)
+
+        post_line = "POST " + (parsed_url.path if parsed_url.path else "/") + " HTTP/1.1\r\n"
+        host_line = "Host: " + parsed_url.hostname + "\r\n"
+        content_type_line = "Content-Type: application/x-www-form-urlencoded\r\n"
+        # connection_line = "Connection: close\r\n\r\n"
+        
+        if args is not None:
+            parameters_line = urllib.parse.urlencode(args)
+            parameters_length = len(parameters_line)
+            content_length_line = "Content-Length: " + str(parameters_length) + "\r\n\r\n"
+        else:
+            parameters_line = ""
+            content_length_line = "Content-Length: 0\r\n\r\n"
+
+        data_to_send = post_line + host_line + content_type_line + content_length_line + parameters_line + "\r\n"
+
+        if parsed_url.port:
+            self.connect(parsed_url.hostname, parsed_url.port)
+        elif parsed_url.scheme == "https":
+            self.connect(parsed_url.hostname, 443)
+        else: # http
+            self.connect(parsed_url.hostname, 80)
+
+        # self.socket.sendall((get_line + host_line + accept_line).encode('utf-8'))
+        self.sendall(data_to_send)
+
+        data = self.recvall(self.socket)
+        # print(data)
+        code = int(self.get_code(data))
+        body = self.get_body(data)
+        self.close()
+
         return HTTPResponse(code, body)
 
     def command(self, url, command="GET", args=None):
